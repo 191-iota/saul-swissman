@@ -15,6 +15,28 @@ period here" is a valid answer. It works only from federal law (SR), so it names
 turns on cantonal law, court rulings (BGE), or doctrine, none of which the corpus contains. It points out the
 related provision or deadline without predicting how a case would end.
 
+## What an answer looks like
+
+The screenshots below are a single exchange in the webview. Someone asks whether they may defend themselves
+with their fists against an attacker who draws a weapon on a train. Saul names the area of law, quotes the
+articles that govern it word for word, applies them to the situation, and marks where the corpus runs out.
+
+![The question, and Saul beginning to read the statutes.](docs/01-frage.png)
+
+Saul restates the question and names the area of law, then gives the governing provisions and quotes them
+verbatim — each with its article, its SR number, and the consolidation date, copied from the law rather than
+recalled.
+
+![Saul names the Rechtsgebiet, then the governing provisions and their wording: Notwehr in Art. 15 StGB and its excess in Art. 16, each with the SR number and the Stand.](docs/02-wortlaut.png)
+
+![The articles applied to the facts — when the defence is justified, and where the line of proportionality runs.](docs/03-anwendung.png)
+
+The answer ends by naming what it cannot settle: the wording leaves "angemessen" to the courts, the offences
+that come into play if the defence goes too far are in a part of the Criminal Code the local corpus does not
+hold, and the whole thing is information from the statute rather than advice on the case.
+
+![The reservations and the disclaimer: what the words leave open, what is not in the local corpus, and the pointer to a lawyer.](docs/04-vorbehalte.png)
+
 ## Start
 
 ```bash
@@ -39,7 +61,8 @@ Code. It decides nothing about the law, and deleting it changes nothing.
 
 ```
 SAUL.md       how Saul works — the whole program
-register/     the map: index.md (router), catalog.md (law → file), domains/ (topic → articles)
+register/     the map: index.md (router), locator.tsv (fast resolver, law → file → present articles),
+              catalog.md (law → file), domains/ (topic → articles), build_index.py (rebuilds the locator)
 corpus/ch/    the law, verbatim German federal statutes (seed vendored; launch.sh fetches the rest)
 web/          the webview (serve.py + index.html)
 ```

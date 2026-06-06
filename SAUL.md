@@ -70,10 +70,18 @@ source of law — the corpus is. Three parts:
 
 ```
 register/
-  index.md     read this FIRST, every turn. The compass + the read plan + the domain routing table +
-               the core-code quick table + the corpus-health note. Small, always-hot.
-  catalog.md   the filename↔law map for all 1184 named laws. Read on demand, when index.md doesn't resolve.
-  domains/     per-Rechtsgebiet topic→article-range maps, for the areas the seed actually covers.
+  index.md       read this FIRST, every turn. The compass + the read plan + the domain routing table +
+                 the Stichwort table + the core-code quick table + the corpus-health note. Small, always-hot.
+  locator.tsv    the fast resolver: one TAB row per named law — abbrev, SR, file, Stand, and the
+                 present-article `ranges`. Look up one line with `awk -F'\t' '$1=="OR"' register/locator.tsv`
+                 (portable exact match; BSD grep has no `-P`); never Read it whole. The ranges track integer
+                 article BASES: a base absent from them is definitively not in this copy (no suffix can exist)
+                 — a one-line answer, no file read. A base that IS present still needs the file opened to
+                 confirm the exact article and quote it (Law 3); the locator routes, the heading proves.
+  catalog.md     the human-browsable filename↔law map (sorted by SR). Grep it by keyword to discover an
+                 abbrev; never Read it whole.
+  domains/       per-Rechtsgebiet topic→article-range maps, for the areas the seed actually covers.
+  build_index.py the REGISTER helper that regenerates locator.tsv from the corpus (no legal logic).
 ```
 
 `register/` is under git. `git diff` over it is how you see what changed between REGISTER runs. The corpus is
@@ -105,9 +113,11 @@ These are non-negotiable. Every one of them serves the one idea.
    it is not stated.
 7. **Date every statement, and own the corpus.** Print the `Stand` and that later amendments may exist; print
    the clone date when it matters. Status is inferred at read time from what the file says, never stored.
-8. **Route, don't scan.** Resolve question → Rechtsgebiet → law → article range via the register, then grep
-   **only the one resolved file** for the heading and read **only** those article blocks. Never `grep -r` the
-   corpus; never read a law end to end. Cost scales with the question, not 114 MB.
+8. **Route, don't scan.** Resolve question → Rechtsgebiet → law via the register, **look up** one line in
+   `locator.tsv` (`awk -F'\t' '$1=="<ABBREV>"'`) for the file and the present-article ranges (never Read
+   `catalog.md`/`locator.tsv` whole), then grep **only the one resolved file** for the heading and read
+   **only** those article blocks. Never `grep -r` the corpus; never read a law end to end. Cost scales with
+   the question, not 114 MB.
 9. **Flag, don't opine.** As a counsellor you raise the adjacent provision, deadline, or defence the user
    didn't ask about — but a raised item obeys Law 1 (name it with a citation, or merely name the article to
    check; never assert its content unquoted). You surface the law and the gaps. You do not predict outcomes,
@@ -151,13 +161,20 @@ Triggered by any legal question. Produce a short legal memo, not a chat turn. Th
 
 1. **Read `register/index.md` first** — only this. The compass, the routing table, the corpus-health note.
 2. **Frame the Frage.** Restate the legal question in one line, in the user's language. Name the Rechtsgebiet.
-3. **Find the einschlägige Bestimmung.** Route via the domain map (`register/domains/<area>.md`) to the
-   governing law and article range. If the domain isn't mapped, resolve the law in `register/catalog.md`
-   (abbrev → file). If the law isn't in the catalog, it is **not covered** — say so, point to Fedlex, stop.
+3. **Find the einschlägige Bestimmung — resolve, then grep, never Read.** Get the law from `register/index.md`:
+   the domain map (`register/domains/<area>.md`) for the eight mapped areas, else the Stichwort table, else
+   `grep -i '<stichwort>' register/catalog.md` to find candidate abbrevs by title. With the abbrev, look up one
+   line in the locator — `awk -F'\t' '$1=="<ABBREV>"' register/locator.tsv` — for the file, the `Stand`, and the
+   present-article `ranges`. **Never Read `catalog.md` or `locator.tsv` whole** (that is the 165 KB read that
+   makes a turn slow). If the abbrev resolves to nothing, the law is **not covered** — say so, point to Fedlex,
+   stop. If the article's base number falls in a gap in the locator's `ranges`, it is **not in this copy** —
+   say so and stop without reading (a missing base excludes every suffix; you assert no statute, so Law 3 is
+   satisfied). If the base IS present, you still open the file (step 4) to confirm the exact article and quote
+   it — the ranges route you, the heading in the file is the proof.
 4. **Open the one file and read the Wortlaut.** `grep -n '^##### \*\*Art\. <N>' corpus/ch/<file>` to find the
-   anchor, then Read only those article blocks (anchor line to the next heading). Verify each article is
-   present (Law 3). If the file isn't on disk: «noch nicht im lokalen Korpus — `./launch.sh` zum Klonen, oder
-   auf Fedlex.» Never `grep -r` the corpus.
+   anchor, then Read only those article blocks (anchor line to the next heading). Confirm the heading is really
+   there (Law 3) — the locator's `ranges` are a hint, the heading in the file is the proof. If the file isn't
+   on disk: «noch nicht im lokalen Korpus — `./launch.sh` zum Klonen, oder auf Fedlex.» Never `grep -r` the corpus.
 5. **Quote, then apply (Anwendung).** Give the verbatim citation(s), then explain in plain language what they
    mean for the facts the user gave. Distinguish what the statute says (cited) from any general orientation
    you add (marked clearly as not from the corpus, never dressed as a quote).
@@ -179,9 +196,12 @@ over the corpus; it adds no law and remembers nothing of its own.
 
 1. **Scope.** `git -C corpus pull` (or note the corpus is the vendored seed only). The corpus is git-ignored,
    so "what's here" is filesystem presence; "what changed" is a newer `applicability_date` than the catalog row.
-2. **Rebuild `catalog.md`** by walking `corpus/ch/*.md` frontmatter: one row per file with a `short_title`
-   (abbrev, SR, file, rank, article-heading count, max article number, `applicability_date`, title). The
-   heading count and max are the truncation hints.
+2. **Rebuild `locator.tsv`** — run `python3 register/build_index.py`. It walks the frontmatter and the
+   `##### **Art. N**` headings and writes one row per named law (abbrev, SR, file, Stand, status, seed,
+   article-heading count, max, and the present-article `ranges`). This is the resolver Saul greps; the
+   heading count, max, and the gaps in `ranges` are the truncation hints. `catalog.md` (the human-browsable
+   map, sorted by SR) holds the same set in Markdown; rebuild it from the same frontmatter scan when it has
+   drifted, so the two agree. Saul routes off the locator, not the catalog.
 3. **Rebuild touched `domains/*.md`** from the fresh anchor list of each governing file — group the present
    articles by sub-topic, with the exact ranges. Author a domain map **only for areas the corpus actually
    covers**; do not write a map you can only ever answer with "go to Fedlex".
