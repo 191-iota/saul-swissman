@@ -1,0 +1,27 @@
+# register/ is versioned on purpose — git diff over register/ is how Saul tracks corpus drift.
+# Do not ignore it.
+
+# The law corpus is 114 MB and re-clonable from legalize-ch; keep it out of git EXCEPT the
+# vendored seed (four complete codes), so a fresh clone of THIS repo answers everyday questions
+# offline. Run ./launch.sh to fetch the rest; it is never committed here. corpus/ch/ is flat, so
+# ignoring its direct children (corpus/ch/*) lets the seed negations below re-include the four files.
+corpus/ch/*
+!corpus/ch/.gitkeep
+# vendored seed (.gitignore has no inline comments, so keep these on their own lines):
+# cc-1999-404 = BV (SR 101), cc-27-317_321_377 = OR (220), cc-54-757_781_799 = StGB-AT (311.0), cc-2022-491 = DSG (235.1)
+!corpus/ch/cc-1999-404.md
+!corpus/ch/cc-27-317_321_377.md
+!corpus/ch/cc-54-757_781_799.md
+!corpus/ch/cc-2022-491.md
+
+# OS / tooling cruft.
+.DS_Store
+__pycache__/
+*.pyc
+
+# Never commit a stray secret even if one slips into the tree.
+*.env
+.env
+*.pem
+*.key
+*_secret*

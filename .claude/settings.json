@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Edit(/register/**)",
+      "Write(/register/**)",
+      "Bash(git pull *)",
+      "Bash(git clone *)",
+      "Bash(git -C corpus pull *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)"
+    ],
+    "deny": [
+      "WebSearch",
+      "WebFetch",
+      "Bash(rm *)",
+      "Bash(sudo *)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "Bash(chmod *)",
+      "Bash(ssh *)",
+      "Bash(git rm *)",
+      "Bash(git checkout *)",
+      "Bash(git restore *)",
+      "Bash(git push *)",
+      "Bash(git config *)",
+      "Bash(git -c *)",
+      "Edit(/corpus/**)",
+      "Write(/corpus/**)",
+      "Edit(/SAUL.md)",
+      "Write(/SAUL.md)",
+      "Edit(/CLAUDE.md)",
+      "Write(/CLAUDE.md)",
+      "Edit(/.claude/**)",
+      "Write(/.claude/**)"
+    ]
+  }
+}

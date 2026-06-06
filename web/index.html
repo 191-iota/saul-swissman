@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<!-- Saul Swissman — the expression layer. Self-contained, offline, no CDN, no build step.
+     It RENDERS register/ files, SLICES verbatim statute articles from corpus/, and STREAMS
+     `claude -p`. It computes no law: no interpretation, no ranking, no summary. Deleting web/
+     loses nothing. The receipt (the verbatim article behind every citation) is the product. -->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saul Swissman — Rechtsauskunft zum Schweizer Bundesrecht</title>
+<style>
+  :root{
+    --bg:#ffffff; --surface:#f7f7f5; --ink:#16191d; --dim:#5b6470; --faint:#6b7280;
+    --hairline:#e6e7ea; --accent:#c1121f; --accent-soft:#fbe9ea; --accent-ink:#8a0d16;
+    --ui:"Inter","Helvetica Neue",Helvetica,Arial,sans-serif;
+    --serif:"Iowan Old Style","Charter",Georgia,"Times New Roman",serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);
+    font:16px/1.7 var(--ui);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  a{color:inherit}
+  ::selection{background:var(--accent-soft)}
+
+  /* header */
+  header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;
+    padding:14px 26px;background:rgba(255,255,255,.93);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--hairline)}
+  .brand{display:flex;align-items:center;gap:11px}
+  .brand .name{font-weight:680;letter-spacing:-.2px;font-size:17px}
+  .brand .sub{color:var(--faint);font-size:12.5px;border-left:1px solid var(--hairline);
+    padding-left:11px;margin-left:1px}
+  header .spacer{flex:1}
+  header button{background:#fff;color:var(--dim);border:1px solid var(--hairline);
+    border-radius:8px;padding:7px 13px;cursor:pointer;font:13px var(--ui)}
+  header button:hover{border-color:var(--accent);color:var(--accent)}
+
+  /* conversation column */
+  main{max-width:730px;margin:0 auto;padding:30px 24px 190px}
+  .matterbar{display:flex;align-items:center;gap:10px;color:var(--faint);font-size:12px;
+    letter-spacing:.4px;margin:6px 0 26px}
+  .matterbar::before,.matterbar::after{content:"";height:1px;background:var(--hairline);flex:1}
+
+  .turn{margin:0 0 30px}
+  .turn .who{font-size:11px;text-transform:uppercase;letter-spacing:1.4px;color:var(--faint);
+    margin:0 0 7px}
+  .turn.you .q{font:17px/1.6 var(--serif);color:var(--ink)}
+  .turn.saul .who{color:var(--accent)}
+
+  /* rendered counsel (markdown) */
+  .md h2{font-size:12px;text-transform:uppercase;letter-spacing:1.3px;color:var(--dim);
+    margin:22px 0 8px;font-weight:670}
+  .md h2:first-child{margin-top:0}
+  .md h3{font-size:15.5px;margin:16px 0 6px;color:var(--ink)}
+  .md p{margin:10px 0;color:var(--ink)}
+  .md ul{margin:8px 0;padding-left:20px}.md li{margin:5px 0}
+  .md strong{font-weight:660}
+  .md em{color:var(--dim)}
+  .md code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:.88em;
+    background:var(--surface);border:1px solid var(--hairline);border-radius:5px;padding:1px 5px}
+  .md a.ext{color:var(--accent-ink);text-decoration:underline;text-underline-offset:2px}
+
+  /* citation chip — the signature interaction */
+  .cite{font:13px/1 var(--ui);background:var(--accent-soft);color:var(--accent-ink);
+    border:1px solid #f3d3d6;border-radius:6px;padding:2px 8px;white-space:nowrap;
+    cursor:pointer;text-decoration:none;display:inline-block;margin:0;vertical-align:baseline}
+  .cite:hover{border-color:var(--accent);background:#fff}
+  .cite:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .cite::before{content:"§";color:var(--accent);font-weight:700;margin-right:4px}
+
+  /* statute quote block (serif = it is the law, not Saul's words) */
+  .law{font:15px/1.62 var(--serif);background:var(--surface);
+    border:1px solid var(--hairline);border-left:3px solid var(--accent);
+    border-radius:0 8px 8px 0;padding:14px 18px;margin:14px 0;color:#1d2127}
+  .law .head{font:11px var(--ui);text-transform:uppercase;letter-spacing:1.1px;
+    color:var(--dim);margin-bottom:1px;font-weight:650}
+  .law .stand{font:12px var(--ui);color:var(--faint);margin-bottom:11px}
+  .law p{margin:7px 0}
+  .law sup{font-size:.68em;padding-right:3px;vertical-align:.4em}
+  .law sup.abs{color:var(--accent);font-weight:700}      /* leading Absatz marker */
+  .law sup.fn{color:var(--faint);font-weight:400}        /* inline footnote reference */
+  .law .gap{font:13.5px/1.6 var(--ui);color:var(--accent-ink)}
+
+  /* empty state */
+  #empty{text-align:center;padding:46px 0 10px}
+  #empty .mark{margin:0 auto 18px;width:46px;height:46px}
+  #empty h1{font:600 27px/1.2 var(--serif);margin:0 0 8px;letter-spacing:-.3px}
+  #empty .lede{color:var(--dim);font-size:15px;max-width:440px;margin:0 auto 26px}
+  #empty .egs{display:flex;flex-direction:column;gap:9px;max-width:430px;margin:0 auto}
+  #empty .eg{border:1px solid var(--hairline);border-radius:10px;padding:12px 15px;cursor:pointer;
+    text-align:left;font:14.5px var(--ui);color:var(--ink);background:#fff;transition:border-color .15s;width:100%}
+  #empty .eg:hover{border-color:var(--accent)}
+  #empty .eg:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  #empty .eg span{color:var(--faint);font-size:12.5px;display:block;margin-top:2px}
+
+  /* ask bar */
+  #bar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:rgba(255,255,255,.94);
+    backdrop-filter:blur(10px);border-top:1px solid var(--hairline)}
+  #bar .inner{max-width:730px;margin:0 auto;padding:14px 24px 9px;display:flex;gap:10px;align-items:flex-end}
+  #ask{flex:1;background:#fff;border:1px solid var(--hairline);border-radius:11px;color:var(--ink);
+    padding:12px 14px;font:15px var(--ui);resize:none;min-height:46px;max-height:150px;line-height:1.5}
+  #ask:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  #bar button{border-radius:11px;padding:0 17px;height:48px;cursor:pointer;font:14px var(--ui);
+    border:1px solid var(--hairline);background:#fff;color:var(--ink);white-space:nowrap}
+  #bar button.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
+  #bar button:hover{filter:brightness(.98)}
+  #bar button.primary:hover{filter:brightness(1.07)}
+  .disclaimer{max-width:730px;margin:0 auto;padding:0 24px 11px;color:var(--faint);font-size:11.5px;line-height:1.5}
+
+  /* slide-over (article reader + law browser) */
+  #panel{position:fixed;top:0;right:0;height:100%;width:min(580px,95vw);z-index:30;background:#fff;
+    border-left:1px solid var(--hairline);transform:translateX(102%);transition:transform .22s ease;
+    box-shadow:-24px 0 60px rgba(20,25,30,.12);display:flex;flex-direction:column}
+  #panel.open{transform:none}
+  .phead{display:flex;align-items:center;gap:11px;padding:16px 20px;border-bottom:1px solid var(--hairline)}
+  .phead .tag{font:11px var(--ui);text-transform:uppercase;letter-spacing:1px;color:var(--faint)}
+  .phead .ttl{font-weight:640;font-size:15px}
+  .phead .x{margin-left:auto;cursor:pointer;color:var(--dim);font-size:22px;line-height:1;
+    background:none;border:0;padding:0 4px;font-family:var(--ui)}
+  .phead .x:hover{color:var(--accent)}
+  .phead .x:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+  .pbody{padding:18px 20px;overflow:auto;flex:1}
+  .jump{display:flex;gap:8px;align-items:center;margin-bottom:14px}
+  .jump input{width:96px;border:1px solid var(--hairline);border-radius:8px;padding:8px 10px;font:14px var(--ui)}
+  .jump input:focus{outline:none;border-color:var(--accent)}
+  .jump button{border:1px solid var(--hairline);background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer;font:13px var(--ui)}
+  .jump button:hover{border-color:var(--accent);color:var(--accent)}
+  .search{width:100%;border:1px solid var(--hairline);border-radius:9px;padding:10px 12px;font:14.5px var(--ui);margin-bottom:12px}
+  .search:focus{outline:none;border-color:var(--accent)}
+  .lawrow{display:flex;gap:10px;align-items:baseline;padding:10px 11px;border:1px solid transparent;
+    border-radius:9px;cursor:pointer}
+  .lawrow:hover{background:var(--surface);border-color:var(--hairline)}
+  .lawrow .ab{font-weight:660;min-width:54px}
+  .lawrow .sr{color:var(--faint);font-size:12px;min-width:62px}
+  .lawrow .tt{color:var(--dim);font-size:13px;flex:1}
+  .hint{color:var(--faint);font-size:12.5px}
+
+  #stream{white-space:pre-wrap;font:15px/1.7 var(--ui);color:var(--ink)}
+  #stream.thinking{color:var(--dim);font-style:italic}
+  .toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);z-index:40;background:var(--ink);
+    color:#fff;border-radius:9px;padding:9px 16px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:.95}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg class="mark" width="22" height="22" viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="6" fill="#c1121f"/>
+      <rect x="13.5" y="6.5" width="5" height="19" fill="#fff"/>
+      <rect x="6.5" y="13.5" width="19" height="5" fill="#fff"/></svg>
+    <span class="name">Saul Swissman</span>
+    <span class="sub">Auskunft zum Schweizer Bundesrecht</span>
+  </div>
+  <div class="spacer"></div>
+  <button id="btnBrowse">Gesetze durchsuchen</button>
+  <button id="btnRegister" title="Register über das Korpus neu aufbauen">↻ Register</button>
+</header>
+
+<main id="thread">
+  <div id="empty">
+    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="6" fill="#c1121f"/>
+      <rect x="13.5" y="6.5" width="5" height="19" fill="#fff"/>
+      <rect x="6.5" y="13.5" width="19" height="5" fill="#fff"/></svg>
+    <h1>Saul Swissman</h1>
+    <div class="lede">Rechtsauskunft zum Schweizer Bundesrecht — jede Aussage mit Artikel, SR-Nummer
+      und wörtlichem Zitat belegt. Kein Beleg, keine Aussage.</div>
+    <div class="egs" id="egs">
+      <button class="eg" type="button" data-q="Darf mein Vermieter den Mietzins erhöhen?">Darf mein Vermieter den Mietzins erhöhen?<span>Mietrecht · OR Art. 269d</span></button>
+      <button class="eg" type="button" data-q="Welche Rechte habe ich bei einem Mangel an einer gekauften Sache?">Welche Rechte habe ich bei einem Mangel an einer gekauften Sache?<span>Kaufrecht · OR Art. 197 ff.</span></button>
+      <button class="eg" type="button" data-q="Was ist mein Auskunftsrecht nach dem Datenschutzgesetz?">Was ist mein Auskunftsrecht nach dem Datenschutzgesetz?<span>Datenschutz · DSG Art. 25</span></button>
+    </div>
+  </div>
+</main>
+
+<aside id="panel">
+  <div class="phead">
+    <span class="tag" id="pTag">Artikel</span>
+    <span class="ttl" id="pTtl"></span>
+    <button class="x" id="pClose" type="button" aria-label="Schliessen">×</button>
+  </div>
+  <div class="pbody" id="pBody"></div>
+</aside>
+
+<div id="bar">
+  <div class="inner">
+    <textarea id="ask" placeholder="Stellen Sie Saul eine Rechtsfrage…  (Enter sendet, Shift+Enter = neue Zeile)"></textarea>
+    <button id="btnSend" class="primary">Fragen</button>
+    <button id="btnNew" title="Neues Mandat — Verlauf leeren">+ Neu</button>
+  </div>
+  <div class="disclaimer">Auf das Gesetz gestützte Rechtsinformation, keine Rechtsberatung. Nur
+    Bundesrecht (SR) im angegebenen Stand — ohne kantonales Recht, Rechtsprechung (BGE) oder Lehre.
+    Für eine verbindliche Beurteilung eine Anwältin oder einen Anwalt beiziehen.</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const CSRF="__CSRF_TOKEN__";
+const $=s=>document.querySelector(s);
+// abbreviations we turn into clickable chips. Union of a curated base + whatever the local corpus has.
+const BASE_ABBREVS=new Set(["OR","ZGB","StGB","BV","StPO","ZPO","DSG","SchKG","SVG","IPRG","URG","ArG",
+  "UWG","KKG","BGFA","DBG","MWSTG","VwVG","BGG","FusG","KG","BetmG","JStG","PartG","OHG","ATSG","UVG","BVG"]);
+let ABBREVS=new Set(BASE_ABBREVS);
+
+/* ---------- tiny escape-first markdown renderer (display only) ---------- */
+function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+// Art. 269d [Abs. 2] [lit. b] OR  ->  chip. Runs on ALREADY-ESCAPED text; only known abbrevs chip.
+const ORD="bis|ter|quater|quinquies|sexies|septies|octies|novies|decies";
+const CITE=new RegExp("\\bArt\\.\\s?(\\d+(?:"+ORD+"|[a-z])?)((?:\\s+Abs\\.\\s?\\d+)?(?:\\s+lit\\.\\s?[a-z])?(?:\\s+Ziff\\.\\s?\\d+)?)\\s+([A-Za-zÄÖÜ]{2,8})\\b","g");
+function citify(s){
+  return s.replace(CITE,(m,art,sub,law)=>
+    ABBREVS.has(law)?`<button type="button" class="cite" data-law="${law}" data-art="${art}">${m}</button>`:m);
+}
+function inline(s){
+  s=esc(s);
+  s=s.replace(/`([^`]+)`/g,(_,c)=>"<code>"+c+"</code>");
+  s=s.replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
+  s=s.replace(/«([^»]*)»/g,"«<em>$1</em>»");                       // statute quotes Saul inlines
+  s=s.replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g,'<a class="ext" href="$2" target="_blank" rel="noopener">$1</a>');
+  s=citify(s);
+  return s;
+}
+function md(src){
+  src=src.replace(/<!--[\s\S]*?-->/g,"");
+  const L=[];
+  for(const raw of src.split("\n")){
+    const line=raw.replace(/\s+$/,"");
+    if(/^##\s+/.test(line)){L.push({t:"h2",s:line.replace(/^##\s+/,"")});continue;}
+    if(/^###\s+/.test(line)){L.push({t:"h3",s:line.replace(/^###\s+/,"")});continue;}
+    if(/^\s*[-*]\s+/.test(line)){L.push({t:"li",s:line.replace(/^\s*[-*]\s+/,"")});continue;}
+    if(line.trim()===""){L.push({t:"blank"});continue;}
+    const p=L[L.length-1];
+    if(p&&(p.t==="li"||p.t==="p")){p.s+=" "+line.trim();continue;}
+    L.push({t:"p",s:line.trim()});
+  }
+  const out=[];let inList=false;const close=()=>{if(inList){out.push("</ul>");inList=false;}};
+  for(const x of L){
+    if(x.t==="blank"){close();continue;}
+    if(x.t==="li"){if(!inList){out.push("<ul>");inList=true;}out.push("<li>"+inline(x.s)+"</li>");continue;}
+    close();
+    if(x.t==="h2")out.push("<h2>"+inline(x.s)+"</h2>");
+    else if(x.t==="h3")out.push("<h3>"+inline(x.s)+"</h3>");
+    else out.push("<p>"+inline(x.s)+"</p>");
+  }
+  close();return out.join("\n");
+}
+// statute text from the corpus: keep <sup>N</sup> Absatz markers, escape the rest, strip the heading line.
+function renderStatute(text){
+  const lines=text.split("\n").filter(l=>!/^#####\s+\*\*Art\./.test(l));
+  const body=lines.join("\n").replace(/\[\^[0-9]+\]/g,"");          // drop [^N] footnote refs
+  return body.split(/\n{2,}/).map(par=>{
+    let safe=esc(par.trim());
+    // a <sup>N</sup> at the very start of a paragraph is the Absatz marker; the rest are footnote refs
+    safe=safe.replace(/^&lt;sup&gt;(\d+)&lt;\/sup&gt;/,'<sup class="abs">$1</sup>');
+    safe=safe.replace(/&lt;sup&gt;(\d+)&lt;\/sup&gt;/g,'<sup class="fn">$1</sup>');
+    return safe?"<p>"+safe.replace(/\n/g," ")+"</p>":"";
+  }).join("");
+}
+
+/* ---------- api ---------- */
+const api={
+  catalog:()=>fetch("/api/catalog").then(r=>r.json()),
+  search:q=>fetch("/api/search?q="+encodeURIComponent(q)).then(r=>r.json()),
+  article:(law,art)=>fetch("/api/article?law="+encodeURIComponent(law)+"&art="+encodeURIComponent(art)).then(r=>r.json()),
+};
+
+/* ---------- slide-over: article reader + law browser ---------- */
+const panel=$("#panel");
+function openPanel(tag,ttl){$("#pTag").textContent=tag;$("#pTtl").textContent=ttl||"";panel.classList.add("open");
+  setTimeout(()=>$("#pClose").focus(),0);}
+$("#pClose").onclick=()=>panel.classList.remove("open");
+
+async function openArticle(law,art){
+  openPanel("Artikel",`Art. ${art} ${law}`);
+  $("#pBody").innerHTML="<p class='hint'>lädt…</p>";
+  let d;try{d=await api.article(law,art);}catch(e){$("#pBody").innerHTML="<p class='hint'>Fehler beim Laden.</p>";return;}
+  const jump=`<div class="jump"><span class="hint">Artikel</span>
+    <input id="jArt" value="${esc(art)}" inputmode="text">
+    <button id="jGo">öffnen</button></div>`;
+  let inner;
+  if(d.present){
+    inner=`<div class="law"><div class="head">Gesetzestext · Art. ${esc(art)} ${esc(d.law)} · SR ${esc(d.sr)}</div>
+      <div class="stand">Stand ${esc(d.appl||"unbekannt")} · spätere Änderungen möglich — auf fedlex.admin.ch prüfen</div>
+      ${renderStatute(d.text)}</div>`;
+  }else{
+    const why=d.reason==="law not in local corpus"||d.reason==="unknown law (not in local corpus)"
+      ?`Das Gesetz <b>${esc(law)}</b> ist nicht im lokalen Korpus. <code>./launch.sh</code> klont das vollständige
+        legalize-ch, oder auf <a class="ext" href="https://www.fedlex.admin.ch" target="_blank" rel="noopener">fedlex.admin.ch</a> prüfen.`
+      :`<b>Art. ${esc(art)} ${esc(law)}</b> ist in der lokalen Kopie nicht als strukturierter Artikel enthalten
+        (gekürztes oder nur inline erfasstes Gesetz). Auf <a class="ext" href="https://www.fedlex.admin.ch" target="_blank" rel="noopener">fedlex.admin.ch</a> prüfen — Saul rekonstruiert keine fehlenden Artikel.`;
+    inner=`<div class="law"><div class="gap">${why}</div></div>`;
+  }
+  $("#pBody").innerHTML=jump+inner;
+  const go=()=>{const a=$("#jArt").value.trim().replace(/\s+/g,"").toLowerCase();if(a)openArticle(d.law||law,a);};
+  $("#jGo").onclick=go;
+  $("#jArt").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();go();}});
+}
+
+async function openBrowser(){
+  openPanel("Gesetze","im lokalen Korpus");
+  $("#pBody").innerHTML=`<input class="search" id="lawq" placeholder="Suche nach Kürzel, SR-Nummer oder Titel…">
+    <div id="lawlist"></div>`;
+  const all=(await api.catalog()).laws;
+  const list=$("#lawlist");
+  const render=rows=>{
+    list.innerHTML=rows.length?rows.map(e=>
+      `<div class="lawrow" data-law="${esc(e.abbrev)}"><span class="ab">${esc(e.abbrev)}</span>
+        <span class="sr">SR ${esc(e.sr)}</span><span class="tt">${esc(e.title)}</span></div>`).join("")
+      :`<p class="hint">Keine Treffer. Das vollständige Korpus mit <code>./launch.sh</code> klonen — die Seed-Version enthält BV, OR, StGB (AT), DSG.</p>`;
+  };
+  render(all);
+  $("#lawq").addEventListener("input",e=>{
+    const s=e.target.value.trim().toLowerCase();
+    render(!s?all:all.filter(x=>x.abbrev.toLowerCase().includes(s)||x.sr.toLowerCase().includes(s)||x.title.toLowerCase().includes(s)));
+  });
+  list.onclick=e=>{const r=e.target.closest(".lawrow");if(r)openArticle(r.dataset.law,"1");};
+}
+$("#btnBrowse").onclick=openBrowser;
+
+// delegated clicks on any citation chip
+document.addEventListener("click",e=>{
+  const a=e.target.closest(".cite[data-law]");
+  if(a){e.preventDefault();openArticle(a.dataset.law,a.dataset.art);}
+});
+addEventListener("keydown",e=>{if(e.key==="Escape")panel.classList.remove("open");});
+
+/* ---------- the conversation ---------- */
+const thread=$("#thread");
+function clearEmpty(){const e=$("#empty");if(e)e.remove();
+  if(!$(".matterbar")){const b=document.createElement("div");b.className="matterbar";
+    b.textContent="Mandat eröffnet";thread.appendChild(b);}}
+function addTurn(cls,who,html){
+  const d=document.createElement("div");d.className="turn "+cls;
+  d.innerHTML=`<div class="who">${who}</div>`+html;thread.appendChild(d);return d;}
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200);}
+
+let running=false;
+async function ask(q){
+  if(running){toast("Saul verfasst noch eine Antwort.");return;}
+  running=true;clearEmpty();
+  addTurn("you","Sie",`<div class="q">${esc(q)}</div>`);
+  const turn=addTurn("saul","Saul",`<div id="stream" class="thinking">Saul liest die Gesetze… ▍</div>`);
+  turn.scrollIntoView({block:"start",behavior:"smooth"});
+  const stream=turn.querySelector("#stream");stream.removeAttribute("id");
+  let acc="",first=true;
+  try{
+    const res=await fetch("/api/run",{method:"POST",
+      headers:{"Content-Type":"application/json","X-CSRF-Token":CSRF},
+      body:JSON.stringify({mode:"advise",question:q})});
+    if(!res.ok){
+      stream.classList.remove("thinking");
+      stream.textContent=res.status===409?"Saul verfasst noch eine Antwort."
+        :("⚠ Anfrage abgelehnt ("+res.status+"). Bitte die Seite neu laden.");
+      running=false;return;
+    }
+    const reader=res.body.getReader(),dec=new TextDecoder();let buf="";
+    while(true){
+      const {value,done}=await reader.read();if(done)break;
+      buf+=dec.decode(value,{stream:true});let p;
+      while((p=buf.indexOf("\n\n"))>=0){
+        const chunk=buf.slice(0,p);buf=buf.slice(p+2);
+        if(!chunk.startsWith("data:"))continue;
+        let ev;try{ev=JSON.parse(chunk.slice(5).trim());}catch{continue;}
+        if(ev.type==="token"){if(first){stream.textContent="";stream.classList.remove("thinking");first=false;}
+          acc+=ev.text;stream.textContent=acc;}
+        else if(ev.type==="error"){stream.classList.remove("thinking");acc+="\n⚠ "+ev.text+"\n";stream.textContent=acc;}
+        else if(ev.type==="done"){if(acc.trim()){const w=document.createElement("div");w.className="md";
+          w.innerHTML=md(acc);stream.replaceWith(w);}}
+      }
+    }
+  }catch(e){stream.textContent=acc+"\n⚠ Verbindungsfehler: "+e;}
+  running=false;
+}
+
+/* ---------- wiring ---------- */
+const askbox=$("#ask");
+function send(){const q=askbox.value.trim();if(!q){toast("Stellen Sie eine Rechtsfrage.");return;}askbox.value="";autosize();ask(q);}
+$("#btnSend").onclick=send;
+askbox.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}});
+function autosize(){askbox.style.height="auto";askbox.style.height=Math.min(askbox.scrollHeight,150)+"px";}
+askbox.addEventListener("input",autosize);
+$("#btnNew").onclick=()=>{if(running){toast("Saul verfasst noch eine Antwort.");return;}
+  location.reload();};
+document.addEventListener("click",e=>{const eg=e.target.closest(".eg[data-q]");if(eg){askbox.value=eg.dataset.q;send();}});
+$("#btnRegister").onclick=()=>{
+  if(running){toast("Saul verfasst noch eine Antwort.");return;}
+  clearEmpty();running=true;
+  const turn=addTurn("saul","Register",`<div id="rs" class="thinking">baut das Register über das Korpus neu auf…</div>`);
+  const stream=turn.querySelector("#rs");stream.removeAttribute("id");let acc="",first=true;
+  fetch("/api/run",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":CSRF},
+    body:JSON.stringify({mode:"register"})}).then(async res=>{
+    if(!res.ok){stream.classList.remove("thinking");
+      stream.textContent=res.status===409?"Saul verfasst noch eine Antwort.":("⚠ Anfrage abgelehnt ("+res.status+").");running=false;return;}
+    const reader=res.body.getReader(),dec=new TextDecoder();let buf="";
+    while(true){const {value,done}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});let p;
+      while((p=buf.indexOf("\n\n"))>=0){const chunk=buf.slice(0,p);buf=buf.slice(p+2);
+        if(!chunk.startsWith("data:"))continue;let ev;try{ev=JSON.parse(chunk.slice(5).trim());}catch{continue;}
+        if(ev.type==="token"){if(first){stream.textContent="";stream.classList.remove("thinking");first=false;}acc+=ev.text;stream.textContent=acc;}
+        else if(ev.type==="error"){acc+="\n⚠ "+ev.text;stream.textContent=acc;}
+        else if(ev.type==="done"){if(acc.trim()){const w=document.createElement("div");w.className="md";w.innerHTML=md(acc);stream.replaceWith(w);}}}}
+    running=false;
+  }).catch(e=>{stream.textContent="⚠ "+e;running=false;});
+};
+
+/* ---------- go: load the corpus abbreviations so chips render reliably ---------- */
+api.catalog().then(d=>{(d.laws||[]).forEach(e=>e.abbrev&&ABBREVS.add(e.abbrev));}).catch(()=>{});
+autosize();askbox.focus();
+</script>
+</body>
+</html>
