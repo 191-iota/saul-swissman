@@ -1,84 +1,70 @@
 # Saul Swissman
 
-Saul Swissman answers questions about Swiss federal law and quotes the statute for everything it says. Each
-answer carries the article, the SR number, and the wording copied from the law. When the provision is not in
-its corpus, it says so and points to Fedlex rather than answer from memory.
+> A Claude Code agent that answers questions on Swiss federal law and quotes the governing statute verbatim for every claim it makes.
 
-There is no application code. `SAUL.md` defines how Saul works, and Claude Code is the engine: it reads the
-law in `corpus/`, finds the governing articles through the map in `register/`, and writes the answer. The
-corpus is the source of truth. `register/` is a small index over it, rebuilt from the law itself, so one
-question costs a few article reads rather than the whole 114 MB.
+![Python](https://img.shields.io/badge/Python-3-3776AB?logo=python&logoColor=white)
 
-Saul quotes the statute instead of paraphrasing from memory; a statement without an article and a verbatim
-quote does not get made. It does not invent a deadline, a fine, or a threshold, and "the statute gives no
-period here" is a valid answer. It works only from federal law (SR), so it names the gap when a question
-turns on cantonal law, court rulings (BGE), or doctrine, none of which the corpus contains. It points out the
-related provision or deadline without predicting how a case would end.
+Saul Swissman has no engine of its own. `SAUL.md` is the whole program, and Claude Code is the runtime that reads it. The agent opens the law in `corpus/`, resolves the governing articles through the small index in `register/`, and writes a short legal memo. Every legal proposition carries the article, the law abbreviation, the SR number, and the German wording copied from the statute it opened that turn. When a provision is not in the corpus, the agent says so and points to Fedlex instead of answering from memory.
 
-## What an answer looks like
+The corpus is German federal law from the Systematische Rechtssammlung, one Markdown file per SR number. `register/` is a derived map over it (a router, a resolver, and per-topic domain maps), rebuilt from the law itself so that one question costs a few article reads rather than a scan of the whole 114 MB. The optional webview in `web/` is a local viewer. It renders the register, slices the article behind each citation, and streams a headless `claude -p` run. It interprets no law, and deleting it changes nothing.
 
-The screenshots below are a single exchange in the webview. Someone asks whether they may defend themselves
-with their fists against an attacker who draws a weapon on a train. Saul names the area of law, quotes the
-articles that govern it word for word, applies them to the situation, and marks where the corpus runs out.
+<p align="center">
+  <img src="docs/02-wortlaut.png" alt="Saul names the Rechtsgebiet, then quotes Art. 15 and Art. 16 StGB verbatim, each as a clickable citation with its SR number and Stand." width="640"><br>
+  <sub>An answer on self-defence: the governing articles quoted word for word, each citation a chip that opens the statute.</sub>
+</p>
 
-![The question, and Saul beginning to read the statutes.](docs/01-frage.png)
-
-Saul restates the question and names the area of law, then gives the governing provisions and quotes them
-verbatim — each with its article, its SR number, and the consolidation date, copied from the law rather than
-recalled.
-
-![Saul names the Rechtsgebiet, then the governing provisions and their wording: Notwehr in Art. 15 StGB and its excess in Art. 16, each with the SR number and the Stand.](docs/02-wortlaut.png)
-
-![The articles applied to the facts — when the defence is justified, and where the line of proportionality runs.](docs/03-anwendung.png)
-
-The answer ends by naming what it cannot settle: the wording leaves "angemessen" to the courts, the offences
-that come into play if the defence goes too far are in a part of the Criminal Code the local corpus does not
-hold, and the whole thing is information from the statute rather than advice on the case.
-
-![The reservations and the disclaimer: what the words leave open, what is not in the local corpus, and the pointer to a lawyer.](docs/04-vorbehalte.png)
-
-## Start
+## Quickstart
 
 ```bash
-# the webview — a white reading room, no terminal to manage:
-./launch.sh web                  # → http://127.0.0.1:8788
-#   ask a question; each citation in the answer opens the verbatim statute next to it.
-
-# a Claude Code session in this folder — the engine itself:
-./launch.sh                      # git-inits register/, offers to clone the full corpus
-#   then ask, e.g.  "Darf mein Vermieter den Mietzins erhöhen?"
-#   after cloning more law, say  "register"  to remap it
+git clone https://github.com/lambdaf-org/saul-swissman
+cd saul-swissman
+./launch.sh web                  # the webview at http://127.0.0.1:8788
 ```
 
-The seed ships four codes — BV and DSG complete, OR to Art. 361, StGB general part — so questions on
-contracts, tenancy, data protection, and constitutional rights work offline. `./launch.sh` fetches the rest
-of Swiss federal law from [legalize-ch](https://github.com/legalize-dev/legalize-ch).
+The webview needs only Python 3 (standard library, no pip or Node). Answering a question needs the `claude` CLI on `PATH`, which the server spawns as the engine. Running `./launch.sh` with no argument prints the two ways in and offers to clone the full corpus.
 
-The webview lives in `web/`. It renders the register, slices the article behind a citation, and runs Claude
-Code. It decides nothing about the law, and deleting it changes nothing.
+Without the webview, open the folder in a Claude Code session and ask directly. The session reads `SAUL.md` and answers as counsel.
 
-## What's where
+```bash
+claude -p "Darf mein Vermieter den Mietzins erhöhen?"
+claude -p "register"             # rebuild the index after cloning more of the corpus
+```
+
+The seed ships four complete codes (BV and DSG complete, OR to Art. 361, the StGB general part), so questions on contracts, tenancy, data protection, and constitutional rights work offline. `./launch.sh` fetches the rest of Swiss federal law from [legalize-ch](https://github.com/legalize-dev/legalize-ch), about 114 MB, which stays git-ignored and re-clonable.
+
+### Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `SAUL_PORT` | No | Port for the webview (default `8788`). |
+
+## Features
+
+- **Citation or nothing**: a legal statement is made only with its article, law abbreviation, SR number, and a verbatim German quote read that turn. A sentence without a receipt does not get written.
+- **Verifies presence before quoting**: the agent confirms the article heading exists in the file before citing it, and never reconstructs a missing or truncated article from memory.
+- **Names its gaps**: it works only from federal law (SR), so it flags when a question turns on cantonal law, court rulings (BGE), or doctrine. The corpus holds none of those.
+- **Clickable statutes**: in the webview, each citation in an answer opens the verbatim article in a side panel, and a law browser lists every named law present in the local corpus.
+- **Routed retrieval**: a question resolves to a Rechtsgebiet, then to one law file via `register/`, so a single answer touches a handful of articles instead of scanning the corpus.
+- **Derived, rebuildable index**: `register/build_index.py` walks the corpus frontmatter and headings to regenerate the resolver, so coverage tracks what is actually on disk.
+
+## How it works
+
+The agent answers as a short memo with a fixed skeleton: Frage, Einschlägige Bestimmung, Wortlaut, Anwendung, Vorbehalte, Anwalt. It reads `register/index.md` first to route the question, looks up one line in `register/locator.tsv` for the file and the present-article ranges, greps that one file for the article heading, reads the block, and quotes it with its `Stand`. The nine Laws of Saul in `SAUL.md` govern the rest: it never invents a deadline, fine, or threshold; it pinpoints the Absatz only as far as the markers allow; it raises the adjacent provision or deadline the question walks into without predicting an outcome.
 
 ```
-SAUL.md       how Saul works — the whole program
-register/     the map: index.md (router), locator.tsv (fast resolver, law → file → present articles),
-              catalog.md (law → file), domains/ (topic → articles), build_index.py (rebuilds the locator)
+SAUL.md       the operating manual: the one idea, the nine Laws, the citation format, the two rituals
+register/     the map: index.md (router), locator.tsv (resolver), catalog.md (law to file),
+              domains/ (topic to articles), build_index.py (rebuilds the locator)
 corpus/ch/    the law, verbatim German federal statutes (seed vendored; launch.sh fetches the rest)
-web/          the webview (serve.py + index.html)
+web/          the optional webview (serve.py + index.html)
 ```
 
-## Limits
+The webview's server (`web/serve.py`) does four things and no more. It serves `register/` files read-only, slices one statute article out of `corpus/ch/` verbatim, lists the catalog of laws present, and spawns `claude -p` to stream an answer back. It binds to `127.0.0.1` only, mints a CSRF token per launch, runs one query at a time, and never decides what the law means.
 
-This is information drawn from the statute, not legal advice, and not a substitute for a lawyer. It rests on
-federal law (SR) at the consolidation date shown with each quote, which does not rule out a later amendment,
-and it does not cover cantonal law, court practice, or doctrine. The corpus is an early conversion and several
-laws are incomplete: the Civil Code holds a fraction of its articles, the seed Criminal Code is the general
-part only, and the OR seed ends at Art. 361 with gaps such as the ordinary-termination articles 334–336. Saul
-names these edges when it reaches them. For anything binding, contested, or time-bound, consult a licensed
-Anwältin or Anwalt.
+## Contributing
+
+See [lambdaf-org/contributing](https://github.com/lambdaf-org/contributing).
 
 ## License
 
-The Swiss federal legal texts in `corpus/` are official enactments and are not protected by copyright under
-the Swiss Copyright Act (URG, SR 231.1; see Fedlex). Saul's own files are MIT — see `LICENSE`. The
-authoritative source is [Fedlex](https://www.fedlex.admin.ch).
+Saul's own files (`SAUL.md`, `register/`, `web/`, the scripts) are MIT, per the `LICENSE` file. The Swiss federal legal texts under `corpus/` are official enactments of the Swiss Confederation and are not protected by copyright under the Swiss Copyright Act (URG, SR 231.1). The authoritative source is [Fedlex](https://www.fedlex.admin.ch).
